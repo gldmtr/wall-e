@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "preLaunchTask": "${defaultBuildTask}",
+      "type": "probe-rs-debug",
+      "request": "launch",
+      "name": "probe_rs Executable launch example",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "probe-rs",
+      "runtimeArgs": ["dap-server"],
+      "chip": "STM32F303CCTx", //!MODIFY
+      "flashingConfig": {
+        "flashingEnabled": true,
+        "resetAfterFlashing": true,
+        "haltAfterReset": false
+      },
+      "coreConfigs": [
+        {
+          "coreIndex": 0,
+          "programBinary": "target/thumbv7em-none-eabihf/debug/wall-e",
+          "rttEnabled": true
+        }
+      ],
+      "env": {
+        //!MODIFY (or remove)
+        "RUST_LOG": "info" // If you set this variable, check the VSCode console log window for the location of the log file.
+      },
+      "consoleLogLevel": "Console" //Info, Debug
+    }
+  ]
+}
