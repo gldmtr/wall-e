@@ -4,7 +4,7 @@ use embedded_hal::blocking::spi::Transfer;
 
 pub struct PS2Controller<SPI>
 where
-    SPI: Transfer<u8>
+    SPI: Transfer<u8>,
 {
     device: SPI,
     state: [u8; 10],
@@ -18,18 +18,21 @@ pub struct StickPosition(pub u8, pub u8);
 pub struct StickPositions(pub StickPosition, pub StickPosition);
 
 impl<SPI> PS2Controller<SPI>
-where 
+where
     SPI: Transfer<u8, Error: fmt::Debug>,
 {
     pub fn new(device: SPI) -> Self {
-        Self { device, state: [0; 10] }
+        Self {
+            device,
+            state: [0; 10],
+        }
     }
 
     pub fn read_state(&mut self) {
         let mut cmd = POLL_CMD;
 
         let result = self.device.transfer(&mut cmd).unwrap();
-        
+
         for (i, byte) in self.state.iter_mut().enumerate() {
             *byte = result[i]
         }

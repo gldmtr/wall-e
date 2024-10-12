@@ -1,33 +1,41 @@
-use embedded_hal::blocking::delay::{DelayUs, DelayMs};
+use embedded_hal::blocking::delay::{DelayMs, DelayUs};
 use shared_bus::{BusMutex, NullMutex};
 
-pub struct DelayManager<'a> {
-    mutex: NullMutex<&'a mut dyn DelayUs<u32>>,
+pub struct DelayManager<D: DelayUs<u32>> {
+    mutex: NullMutex<D>,
 }
 
-pub struct SharedDelay<'a> {
-    mutex: &'a NullMutex<&'a mut dyn DelayUs<u32>>,
+pub struct SharedDelay<'a, D: DelayUs<u32>> {
+    mutex: &'a NullMutex<D>,
 }
 
-impl<'a> DelayManager<'a> {
-    pub fn new(delay: &'a mut dyn DelayUs<u32>) -> Self {
+impl<'a, D: DelayUs<u32>> DelayManager<D> {
+    pub fn new(delay: D) -> Self {
         let mutex = NullMutex::create(delay);
 
-        return Self{mutex};
+        return Self { mutex };
     }
 
-    pub fn get(&'a self) -> SharedDelay<'a> {
-        return SharedDelay{mutex: &self.mutex}
+    pub fn get(&'a self) -> SharedDelay<'a, D> {
+        return SharedDelay { mutex: &self.mutex };
     }
 }
 
-impl<'a, W> DelayUs<W> for SharedDelay<'a> where W: Into<u32> {
+impl<'a, W, D> DelayUs<W> for SharedDelay<'a, D>
+where
+    W: Into<u32>,
+    D: DelayUs<u32>,
+{
     fn delay_us(&mut self, us: W) {
         self.mutex.lock(|delay| delay.delay_us(us.into()))
     }
 }
 
-impl<'a, W> DelayMs<W> for SharedDelay<'a> where W: Into<u32> {
+impl<'a, W, D> DelayMs<W> for SharedDelay<'a, D>
+where
+    W: Into<u32>,
+    D: DelayUs<u32>,
+{
     fn delay_ms(&mut self, us: W) {
         self.mutex.lock(|delay| delay.delay_us(us.into() * 1000))
     }

@@ -3,9 +3,11 @@
 
 mod chassis_controller;
 mod controller;
+mod motor;
 mod shared_delay;
 mod spi_device;
 
+use chassis_controller::ChassisController;
 use controller::PS2Controller;
 use defmt_rtt as _;
 use hal::hal::spi::MODE_3;
@@ -17,6 +19,7 @@ use stm32f3xx_hal::{
     hal::blocking::delay::DelayMs,
     pac,
     prelude::*,
+    pwm::tim2,
     spi::{config, Spi},
 };
 
@@ -100,14 +103,40 @@ fn main() -> ! {
         spi.peripheral().cr1.modify(|_, w| w.lsbfirst().set_bit());
     }
 
-    let read_delay: u8 = 50;
-    let mut harware_delay = hal::delay::Delay::new(cp.SYST, clocks);
-    let delay = shared_delay::DelayManager::new(&mut harware_delay);
+    let harware_delay = hal::delay::Delay::new(cp.SYST, clocks);
+    let delay = shared_delay::DelayManager::new(harware_delay);
 
     let bus = shared_bus::BusManagerSimple::new(spi);
     let mut dev = spi_device::SpiDevice::new(bus.acquire_spi(), ps_cs, delay.get());
-    dev.set_read_delay_us(read_delay);
+    dev.set_read_delay_us(50);
     let mut controller = PS2Controller::new(dev);
+
+    let tim2 = tim2(dp.TIM2, 100, 50.Hz(), &clocks);
+    let pa1 = gpioa
+        .pa1
+        .into_af_push_pull(&mut gpioa.moder, &mut gpioa.otyper, &mut gpioa.afrl);
+    let m11 = gpioa
+        .pa2
+        .into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper);
+    let m12 = gpioa
+        .pa3
+        .into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper);
+    let me1 = tim2.1.output_to_pa1(pa1);
+    let left_motor = motor::PWMMotor::new(me1, m11, m12);
+
+    let pa0 = gpioa
+        .pa0
+        .into_af_push_pull(&mut gpioa.moder, &mut gpioa.otyper, &mut gpioa.afrl);
+    let m21 = gpioa
+        .pa9
+        .into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper);
+    let m22 = gpioa
+        .pa10
+        .into_push_pull_output(&mut gpioa.moder, &mut gpioa.otyper);
+    let me2 = tim2.0.output_to_pa0(pa0);
+    let right_motor = motor::PWMMotor::new(me2, m21, m22);
+
+    let mut chassis_controller = ChassisController::new(left_motor, right_motor);
 
     loop {
         controller.read_state();
@@ -120,7 +149,8 @@ fn main() -> ! {
             stick_positions.0,
             stick_positions.1
         );
-        chassis_controller::ChassisController::stick_to_motor_power(stick_positions.0);
+
+        chassis_controller.process_input(stick_positions.0);
     }
 }
 
